@@ -1,0 +1,13 @@
+# Exclude large media from Vercel deployment
+*.mp4
+*.mp3
+raw_video/
+docs/
+tests/
+policy/
+examples/
+schema/
+*.py
+*.pyc
+__pycache__/
+.pytest_cache/
