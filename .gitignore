@@ -62,3 +62,5 @@ raw_video/
 # Local logs and runtime state
 logs/*.log
 *.log
+
+.vercel
