@@ -1,0 +1,10 @@
+{
+  "action_id": "act-deny-spend-002",
+  "action_type": "evm_call",
+  "sender": "0x1111111254fb6c44bac0bed2854e76f90643097d",
+  "target": "0x76A4De34D608AEf6003117565868E079d20c57F9",
+  "value_wei": "5000000000000000000",
+  "data": "0xd0e30db0",
+  "timestamp": 1793800800,
+  "description": "Attempted 5.0 PHRS deposit into WPHRS, which exceeds the max 1.0 PHRS per-transaction limit (rule-spend-limit-01)."
+}

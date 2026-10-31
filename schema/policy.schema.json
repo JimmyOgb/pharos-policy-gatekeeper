@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pharos.xyz/schemas/policy-gatekeeper/policy.schema.json",
+  "title": "Pharos Policy Gatekeeper Configuration Schema",
+  "description": "Defines configurable security rules for Pharos agent action gating (spend limits, allowlists, and time windows).",
+  "type": "object",
+  "required": ["version", "policy_id", "name", "rules"],
+  "properties": {
+    "version": {
+      "type": "string",
+      "description": "Semantic version of the policy definition.",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "policy_id": {
+      "type": "string",
+      "description": "Unique identifier for this policy configuration."
+    },
+    "name": {
+      "type": "string",
+      "description": "Human-readable name of the policy profile."
+    },
+    "description": {
+      "type": "string",
+      "description": "Detailed explanation of policy scope and intent."
+    },
+    "network": {
+      "type": "object",
+      "required": ["chain_id", "rpc_url"],
+      "properties": {
+        "chain_id": { "type": "integer", "default": 688689 },
+        "name": { "type": "string", "default": "Pharos Atlantic Testnet" },
+        "rpc_url": { "type": "string", "default": "https://atlantic.dplabs-internal.com" }
+      }
+    },
+    "default_action": {
+      "type": "string",
+      "enum": ["DENY"],
+      "default": "DENY",
+      "description": "Fail-closed default action. Must always be DENY."
+    },
+    "rules": {
+      "type": "array",
+      "minItems": 3,
+      "description": "Array of security rules. Must contain at least spend_limit, allowlist, and time_window.",
+      "items": {
+        "type": "object",
+        "required": ["id", "type", "enabled", "name"],
+        "properties": {
+          "id": { "type": "string", "description": "Unique rule identifier." },
+          "type": {
+            "type": "string",
+            "enum": ["spend_limit", "allowlist", "time_window"]
+          },
+          "name": { "type": "string" },
+          "description": { "type": "string" },
+          "enabled": { "type": "boolean", "default": true },
+          "parameters": {
+            "type": "object",
+            "description": "Rule-specific configuration parameters."
+          }
+        }
+      }
+    }
+  }
+}

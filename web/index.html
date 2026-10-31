@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pharos Policy Gatekeeper — Security Dashboard</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="app-layout">
+    <!-- Navigation / Top Header -->
+    <header class="app-header">
+      <div class="header-brand">
+        <div class="brand-shield">🛡️</div>
+        <div>
+          <h1>Pharos Policy Gatekeeper</h1>
+          <p class="subtitle">Deterministic Fail-Closed Agent Execution Firewall & Audit Ledger</p>
+        </div>
+      </div>
+      <div class="header-badges">
+        <div id="badge-network" class="status-badge badge-neutral">
+          <span class="badge-dot"></span>
+          <span id="network-text">Atlantic RPC: Checking...</span>
+        </div>
+        <div class="status-badge badge-warning">
+          <span class="badge-dot"></span>
+          <span>EVALUATION ONLY (Zero Broadcast)</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Container Grid -->
+    <main class="dashboard-grid">
+      <!-- Left Column: Active Policy & Simulator -->
+      <section class="panel-column">
+        <!-- Active Policy Card -->
+        <div class="card policy-overview-card">
+          <div class="card-header">
+            <div class="card-title-group">
+              <span class="card-icon">📜</span>
+              <h2>Active Security Policy</h2>
+            </div>
+            <span id="policy-version-badge" class="pill-badge">v1.0.0</span>
+          </div>
+          <p id="policy-description" class="policy-desc">
+            Default fail-closed policy safeguarding autonomous Pharos Atlantic agents. Enforces strict spend caps, address whitelists, and UTC time windows.
+          </p>
+          <div class="rules-summary-grid">
+            <div class="rule-mini-card">
+              <div class="rule-mini-header">
+                <span class="rule-type-tag">SPEND LIMIT</span>
+                <span class="status-indicator pass">Active</span>
+              </div>
+              <div class="rule-mini-body">
+                <div>Max Native: <strong>1.0 PHRS</strong></div>
+                <div>Max USDC: <strong>100.00 USDC</strong></div>
+                <div>Daily Cap: <strong>5.0 PHRS</strong></div>
+              </div>
+            </div>
+            <div class="rule-mini-card">
+              <div class="rule-mini-header">
+                <span class="rule-type-tag">ALLOWLIST</span>
+                <span class="status-indicator pass">Active</span>
+              </div>
+              <div class="rule-mini-body">
+                <div>MultiCall3: <code>0xcA11...CA11</code></div>
+                <div>Atlantic USDC: <code>0xcfC8...Fc8B</code></div>
+                <div>Atlantic WPHRS: <code>0x76A4...57F9</code></div>
+              </div>
+            </div>
+            <div class="rule-mini-card">
+              <div class="rule-mini-header">
+                <span class="rule-type-tag">TIME WINDOW</span>
+                <span class="status-indicator pass">Active</span>
+              </div>
+              <div class="rule-mini-body">
+                <div>Hours: <strong>08:00 – 20:00 UTC</strong></div>
+                <div>Days: <strong>Mon – Fri</strong></div>
+                <div>Boundaries: <strong>Inclusive</strong></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Action Simulator Card -->
+        <div class="card action-simulator-card">
+          <div class="card-header">
+            <div class="card-title-group">
+              <span class="card-icon">⚡</span>
+              <h2>Proposed Action Simulator</h2>
+            </div>
+          </div>
+          <p class="section-hint">
+            Simulate proposed agent actions against the active policy. Test pre-configured acceptance proofs or enter custom values.
+          </p>
+
+          <!-- Quick Presets -->
+          <div class="presets-toolbar">
+            <span class="toolbar-label">Scenarios:</span>
+            <button type="button" class="btn-preset active" id="preset-allow">✅ Allow (All Rules Pass)</button>
+            <button type="button" class="btn-preset" id="preset-deny-spend">🛑 Deny: Spend Limit</button>
+            <button type="button" class="btn-preset" id="preset-deny-allowlist">🛑 Deny: Unlisted Target</button>
+            <button type="button" class="btn-preset" id="preset-deny-time">🛑 Deny: Outside Window</button>
+          </div>
+
+          <!-- Input Form -->
+          <form id="action-form" class="action-form">
+            <div class="form-row">
+              <div class="form-group flex-1">
+                <label for="input-action-id">Action ID</label>
+                <input type="text" id="input-action-id" value="act-allow-001" required>
+              </div>
+              <div class="form-group flex-1">
+                <label for="input-action-type">Action Type</label>
+                <select id="input-action-type">
+                  <option value="evm_call">evm_call (Contract Call)</option>
+                  <option value="evm_transfer">evm_transfer (Native Transfer)</option>
+                  <option value="unauthorized_exec">unauthorized_exec (Test Unknown Type)</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="input-target">Target Contract / Recipient Address</label>
+              <input type="text" id="input-target" class="mono-input" value="0xcA11bde05977b3631167028862bE2a173976CA11" required>
+              <div class="input-quick-links">
+                <button type="button" class="quick-link" data-target="0xcA11bde05977b3631167028862bE2a173976CA11">MultiCall3</button>
+                <button type="button" class="quick-link" data-target="0xcfC8330f4BCAB529c625D12781b1C19466A9Fc8B">USDC</button>
+                <button type="button" class="quick-link" data-target="0x76A4De34D608AEf6003117565868E079d20c57F9">WPHRS</button>
+                <button type="button" class="quick-link danger" data-target="0x9999999999999999999999999999999999999999">Untrusted 0x9999...</button>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group flex-1">
+                <label for="input-value-wei">Native Value (Wei)</label>
+                <input type="number" id="input-value-wei" class="mono-input" value="0" min="0">
+                <div class="input-quick-links">
+                  <button type="button" class="quick-link" data-value="0">0 Wei</button>
+                  <button type="button" class="quick-link" data-value="500000000000000000">0.5 PHRS</button>
+                  <button type="button" class="quick-link" data-value="1000000000000000000">1.0 PHRS (Cap)</button>
+                  <button type="button" class="quick-link danger" data-value="5000000000000000000">5.0 PHRS (Exceeds)</button>
+                </div>
+              </div>
+              <div class="form-group flex-1">
+                <label for="input-timestamp">Evaluation Timestamp (Epoch Seconds)</label>
+                <input type="number" id="input-timestamp" class="mono-input" value="1793800800">
+                <div class="input-quick-links">
+                  <button type="button" class="quick-link" data-time="wednesday_business">Wed 14:00 UTC</button>
+                  <button type="button" class="quick-link danger" data-time="wednesday_night">Wed 03:00 UTC</button>
+                  <button type="button" class="quick-link danger" data-time="weekend">Sunday Noon</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="input-calldata">Calldata (Hex)</label>
+              <input type="text" id="input-calldata" class="mono-input" value="0xbce38bd70000000000000000000000000000000000000000000000000000000000000000">
+            </div>
+
+            <div class="form-group">
+              <label for="input-description">Action Description</label>
+              <input type="text" id="input-description" value="MultiCall3 batch read evaluation during approved UTC business window">
+            </div>
+
+            <button type="submit" id="btn-submit-eval" class="btn-primary">
+              <span class="btn-icon">🛡️</span> Evaluate Policy Gate
+            </button>
+          </form>
+        </div>
+      </section>
+
+      <!-- Right Column: Decision Verdict & Audit Ledger -->
+      <section class="panel-column">
+        <!-- Decision Verdict Card -->
+        <div class="card verdict-card" id="verdict-card">
+          <div class="card-header">
+            <div class="card-title-group">
+              <span class="card-icon">⚖️</span>
+              <h2>Gate Decision Verdict</h2>
+            </div>
+            <div id="verdict-pill" class="verdict-pill neutral">AWAITING EVALUATION</div>
+          </div>
+
+          <div id="verdict-banner" class="verdict-banner neutral">
+            <div class="banner-title" id="verdict-title">Ready to evaluate</div>
+            <p class="banner-reason" id="verdict-reason">Submit an action to view deterministic policy gatekeeper results.</p>
+          </div>
+
+          <div class="verdict-meta-grid">
+            <div class="meta-item">
+              <span class="meta-label">Deciding Rule</span>
+              <span class="meta-value mono" id="meta-deciding-rule">—</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Rule Type</span>
+              <span class="meta-value mono" id="meta-rule-type">—</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Decision ID</span>
+              <span class="meta-value mono text-truncate" id="meta-decision-id">—</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Execution Status</span>
+              <span class="meta-value mono text-warning" id="meta-execution-status">NOT EXECUTED</span>
+            </div>
+          </div>
+
+          <!-- Rule-by-rule Trace -->
+          <div class="rule-traces-container">
+            <h3>Individual Rule Evaluation Traces</h3>
+            <div id="rule-traces-list" class="rule-traces-list">
+              <div class="empty-state">No evaluations recorded yet.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Audit Ledger Card -->
+        <div class="card audit-card">
+          <div class="card-header">
+            <div class="card-title-group">
+              <span class="card-icon">⛓️</span>
+              <h2>Append-Only Audit Ledger</h2>
+            </div>
+            <div class="audit-actions">
+              <button type="button" id="btn-verify-audit" class="btn-secondary">
+                <span>🔐</span> Verify Hash Chain
+              </button>
+              <button type="button" id="btn-refresh-audit" class="btn-icon-action" title="Refresh records">🔄</button>
+            </div>
+          </div>
+
+          <!-- Integrity Verification Banner -->
+          <div id="integrity-banner" class="integrity-banner hidden">
+            <span class="integrity-icon" id="integrity-icon">✅</span>
+            <div class="integrity-details">
+              <strong id="integrity-title">SHA-256 Chain Verified</strong>
+              <span id="integrity-msg">Unbroken cryptographic hash chain across all entries.</span>
+            </div>
+          </div>
+
+          <!-- Table Container -->
+          <div class="table-container">
+            <table class="audit-table">
+              <thead>
+                <tr>
+                  <th>Seq</th>
+                  <th>Timestamp (UTC)</th>
+                  <th>Outcome</th>
+                  <th>Deciding Rule</th>
+                  <th>Hash Chaining (Prev &rarr; Entry)</th>
+                </tr>
+              </thead>
+              <tbody id="audit-table-body">
+                <tr>
+                  <td colspan="5" class="table-empty">Loading ledger records...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="audit-footer-note">
+            <span>ℹ️ Tamper-evident SHA-256 hash chaining: <code>entry_hash = SHA-256(previous_hash || payload)</code></span>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

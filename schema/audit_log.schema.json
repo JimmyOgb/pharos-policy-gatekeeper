@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pharos.xyz/schemas/policy-gatekeeper/audit-log.schema.json",
+  "title": "Pharos Policy Gatekeeper Audit Log Entry Schema",
+  "description": "Schema for structured, append-only, tamper-evident audit log entries recording agent policy decisions.",
+  "type": "object",
+  "required": [
+    "sequence_number",
+    "decision_id",
+    "timestamp",
+    "policy_id",
+    "policy_version",
+    "action_request",
+    "outcome",
+    "deciding_rule_id",
+    "deciding_rule_type",
+    "reason",
+    "evaluations",
+    "integrity"
+  ],
+  "properties": {
+    "sequence_number": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Monotonically increasing sequence index."
+    },
+    "decision_id": {
+      "type": "string",
+      "description": "Unique UUID or deterministic hash for this evaluation."
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO-8601 UTC timestamp of policy evaluation."
+    },
+    "policy_id": {
+      "type": "string",
+      "description": "Identifier of the active policy."
+    },
+    "policy_version": {
+      "type": "string",
+      "description": "Version string of the evaluated policy."
+    },
+    "action_request": {
+      "type": "object",
+      "required": ["action_id", "target"],
+      "properties": {
+        "action_id": { "type": "string" },
+        "action_type": { "type": "string" },
+        "sender": { "type": "string" },
+        "target": { "type": "string" },
+        "value_wei": { "type": ["string", "integer"] },
+        "data": { "type": "string" },
+        "timestamp": { "type": "integer" }
+      }
+    },
+    "outcome": {
+      "type": "string",
+      "enum": ["ALLOW", "DENY"],
+      "description": "Explicit gate verdict. Never ambiguous."
+    },
+    "deciding_rule_id": {
+      "type": "string",
+      "description": "Specific rule ID responsible for the final outcome."
+    },
+    "deciding_rule_type": {
+      "type": "string",
+      "enum": ["spend_limit", "allowlist", "time_window", "fail_closed_default", "schema_validation"]
+    },
+    "reason": {
+      "type": "string",
+      "description": "Human-readable explanation of the verdict."
+    },
+    "evaluations": {
+      "type": "array",
+      "description": "Detailed trace of all rules evaluated.",
+      "items": {
+        "type": "object",
+        "required": ["rule_id", "rule_type", "passed", "message"],
+        "properties": {
+          "rule_id": { "type": "string" },
+          "rule_type": { "type": "string" },
+          "passed": { "type": "boolean" },
+          "message": { "type": "string" },
+          "execution_time_ms": { "type": "number" }
+        }
+      }
+    },
+    "integrity": {
+      "type": "object",
+      "required": ["algorithm", "previous_hash", "entry_hash"],
+      "properties": {
+        "algorithm": { "type": "string", "default": "sha256" },
+        "previous_hash": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$",
+          "description": "SHA-256 hash of previous entry (or 64 zeros for genesis)."
+        },
+        "entry_hash": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$",
+          "description": "SHA-256 hash of canonical JSON of this entry (excluding entry_hash itself)."
+        }
+      }
+    }
+  }
+}
