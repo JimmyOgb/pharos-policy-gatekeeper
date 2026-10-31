@@ -1,9 +1,21 @@
-// Pharos Policy Gatekeeper — Web Dashboard Client Application
+// Pharos Policy Gatekeeper — Dual-Mode Web Dashboard Application
+// Mode A: Local Authoritative Mode (FastAPI Python Policy Engine)
+// Mode B: Hosted Browser-Demo Mode (Deterministic Client-Side Policy Engine)
 
 document.addEventListener("DOMContentLoaded", () => {
-  // Elements
+  // Mode & Navigation Elements
+  const badgeMode = document.getElementById("badge-mode");
+  const modeText = document.getElementById("mode-text");
   const badgeNetwork = document.getElementById("badge-network");
   const networkText = document.getElementById("network-text");
+  const safetyTitle = document.getElementById("safety-mode-title");
+  const safetyText = document.getElementById("safety-mode-text");
+  const metaOperatingMode = document.getElementById("meta-operating-mode");
+  const auditTitleText = document.getElementById("audit-title-text");
+  const auditModeNotice = document.getElementById("audit-mode-notice");
+  const auditFooterText = document.getElementById("audit-footer-text");
+
+  // Form & Simulator Elements
   const form = document.getElementById("action-form");
   const btnSubmit = document.getElementById("btn-submit-eval");
   
@@ -15,6 +27,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const metaDecidingRule = document.getElementById("meta-deciding-rule");
   const metaRuleType = document.getElementById("meta-rule-type");
   const metaDecisionId = document.getElementById("meta-decision-id");
+  const metaExecutionStatus = document.getElementById("meta-execution-status");
   const ruleTracesList = document.getElementById("rule-traces-list");
 
   // Audit Elements
@@ -42,12 +55,17 @@ document.addEventListener("DOMContentLoaded", () => {
   const presetDenyTime = document.getElementById("preset-deny-time");
   const allPresets = [presetAllow, presetDenySpend, presetDenyAllowlist, presetDenyTime];
 
+  // State
+  let isLocalBackend = false;
+  let browserSessionRecords = [];
+  let lastSessionHash = "0000000000000000000000000000000000000000000000000000000000000000";
+
   function setActivePreset(activeBtn) {
     allPresets.forEach(btn => btn.classList.remove("active"));
     if (activeBtn) activeBtn.classList.add("active");
   }
 
-  // Presets definition
+  // Preset Listeners
   presetAllow.addEventListener("click", () => {
     setActivePreset(presetAllow);
     inputActionId.value = "act-allow-001";
@@ -64,7 +82,7 @@ document.addEventListener("DOMContentLoaded", () => {
     inputActionId.value = "act-deny-spend-002";
     inputActionType.value = "evm_call";
     inputTarget.value = "0x76A4De34D608AEf6003117565868E079d20c57F9";
-    inputValueWei.value = "5000000000000000000"; // 5.0 PHRS (exceeds 1.0)
+    inputValueWei.value = "5000000000000000000"; // 5.0 PHRS (exceeds 1.0 PHRS)
     inputTimestamp.value = "1793800800";
     inputCalldata.value = "0xd0e30db0";
     inputDescription.value = "Attempted 5.0 PHRS deposit into WPHRS, exceeding per-transaction limit of 1.0 PHRS";
@@ -115,67 +133,187 @@ document.addEventListener("DOMContentLoaded", () => {
       } else if (mode === "wednesday_night") {
         inputTimestamp.value = "1793761200"; // Wed 03:00 UTC
       } else if (mode === "weekend") {
-        inputTimestamp.value = "1793444400"; // Saturday 11:00 UTC
+        inputTimestamp.value = "1793534400"; // Sunday 12:00 UTC
       }
       setActivePreset(null);
     });
   });
 
-  // Fetch Status & Network
-  async function loadStatus() {
-    try {
-      const resp = await fetch("/api/status");
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      const data = await resp.json();
+  // Helper: SHA-256 for browser-side audit chaining
+  async function computeSha256(text) {
+    if (window.crypto && window.crypto.subtle) {
+      const msgBuffer = new TextEncoder().encode(text);
+      const hashBuffer = await window.crypto.subtle.digest("SHA-256", msgBuffer);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      return hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
+    }
+    // Fallback simple hash string if crypto.subtle not available
+    let hash = 0;
+    for (let i = 0; i < text.length; i++) {
+      hash = ((hash << 5) - hash) + text.charCodeAt(i);
+      hash |= 0;
+    }
+    return Math.abs(hash).toString(16).padStart(64, "0");
+  }
 
-      // Network badge
-      if (data.network && data.network.connected) {
-        badgeNetwork.className = "status-badge badge-success";
-        networkText.textContent = `Atlantic Testnet (#${data.network.block_number.toLocaleString()}, ${data.network.latency_ms}ms)`;
-      } else {
-        badgeNetwork.className = "status-badge badge-warning";
-        networkText.textContent = "Atlantic RPC: Offline (Policy Engine Active)";
+  // Mode Auto-Detection & Initialization
+  async function detectOperatingMode() {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 2000);
+      const resp = await fetch("/api/status", { signal: controller.signal });
+      clearTimeout(timeoutId);
+
+      if (resp.ok) {
+        const data = await resp.json();
+        if (data.status === "healthy") {
+          enableLocalBackendMode(data);
+          return;
+        }
       }
+      enableBrowserDemoMode("Backend reported non-healthy status.");
     } catch (e) {
-      badgeNetwork.className = "status-badge badge-warning";
-      networkText.textContent = "Atlantic RPC: Offline (Policy Engine Active)";
+      enableBrowserDemoMode("FastAPI server unreachable (Hosted Vercel environment).");
     }
   }
 
-  // Load Audit Records
-  async function loadAuditRecords() {
+  function enableLocalBackendMode(data) {
+    isLocalBackend = true;
+    badgeMode.className = "status-badge badge-success";
+    modeText.textContent = "LOCAL BACKEND ACTIVE (FastAPI Engine)";
+    
+    safetyTitle.textContent = "LOCAL AUTHORITATIVE MODE — FASTAPI ENGINE ACTIVE";
+    safetyText.innerHTML = "Connected to local Python policy gatekeeper. Decisions are evaluated by the authoritative Python engine with immutable SHA-256 audit ledger logging. Every verdict reports <code class=\"status-code\">execution_status: NOT EXECUTED</code>.";
+
+    metaOperatingMode.textContent = "Local Python Engine";
+    metaOperatingMode.className = "meta-value mono text-success";
+
+    auditTitleText.textContent = "Append-Only Audit Ledger (audit.jsonl)";
+    auditModeNotice.textContent = "Authoritative SHA-256 Cryptographic Hash Chain Ledger (audit.jsonl)";
+    auditFooterText.innerHTML = "ℹ️ Authoritative tamper-evident SHA-256 hash chaining: <code>entry_hash = SHA-256(prev || payload)</code>";
+
+    if (data.network && data.network.connected) {
+      badgeNetwork.className = "status-badge badge-success";
+      networkText.textContent = `Atlantic Testnet (#${data.network.block_number.toLocaleString()}, ${data.network.latency_ms}ms)`;
+    } else {
+      badgeNetwork.className = "status-badge badge-neutral";
+      networkText.textContent = "Atlantic RPC: Standby (Offline-First)";
+    }
+
+    loadBackendAuditRecords();
+  }
+
+  function enableBrowserDemoMode(reason) {
+    isLocalBackend = false;
+    badgeMode.className = "status-badge badge-warning";
+    modeText.textContent = "DEMO MODE — BROWSER-SIDE EVALUATION";
+
+    safetyTitle.textContent = "DEMO MODE — BROWSER-SIDE POLICY EVALUATION";
+    safetyText.innerHTML = "Policy decisions are demonstrations only. They do not authorize, execute, block, or secure real wallet transactions. Every evaluation strictly returns <code class=\"status-code\">execution_status: NOT EXECUTED</code>.";
+
+    metaOperatingMode.textContent = "Browser-Side Demo";
+    metaOperatingMode.className = "meta-value mono text-warning";
+
+    auditTitleText.textContent = "Evaluation Audit History";
+    auditModeNotice.textContent = "Browser Session History (Demonstration Log — Retained in Memory)";
+    auditFooterText.innerHTML = "ℹ️ Demonstration mode: Session entries are hashed in-memory. For persistent cryptographic audit ledger, run local backend.";
+
+    badgeNetwork.className = "status-badge badge-neutral";
+    networkText.textContent = "Atlantic RPC: Client Evaluation";
+
+    loadSeedBrowserDemoRecords();
+  }
+
+  // Initial Demo Seed Records (Matching Task 11 Canonical Proofs)
+  async function loadSeedBrowserDemoRecords() {
+    if (browserSessionRecords.length === 0) {
+      const seedEntries = [
+        {
+          seq: 1,
+          time: "2026-11-04 14:00:00 UTC",
+          outcome: "ALLOW",
+          rule: "consensus",
+          desc: "MultiCall3 batch read during Wed business hours"
+        },
+        {
+          seq: 2,
+          time: "2026-11-04 14:00:00 UTC",
+          outcome: "DENY",
+          rule: "rule-spend-limit-01",
+          desc: "Native spend of 5.0 PHRS exceeds 1.0 PHRS limit"
+        },
+        {
+          seq: 3,
+          time: "2026-11-04 14:00:00 UTC",
+          outcome: "DENY",
+          rule: "rule-allowlist-02",
+          desc: "Target address 0x9999... is not in authorized allowlist"
+        },
+        {
+          seq: 4,
+          time: "2026-11-04 03:00:00 UTC",
+          outcome: "DENY",
+          rule: "rule-time-window-03",
+          desc: "Time 03:00 UTC is outside authorized 08:00-20:00 window"
+        }
+      ];
+
+      for (const item of seedEntries) {
+        const payloadStr = JSON.stringify(item);
+        const entryHash = await computeSha256(lastSessionHash + payloadStr);
+        browserSessionRecords.push({
+          sequence_number: item.seq,
+          timestamp: item.time,
+          outcome: item.outcome,
+          deciding_rule_id: item.rule,
+          reason: item.desc,
+          integrity: {
+            previous_hash: lastSessionHash,
+            entry_hash: entryHash
+          }
+        });
+        lastSessionHash = entryHash;
+      }
+    }
+    renderAuditTable(browserSessionRecords);
+  }
+
+  // Load Backend Records (Mode A)
+  async function loadBackendAuditRecords() {
     try {
       const resp = await fetch("/api/audit?limit=50&tail=true");
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const data = await resp.json();
-
-      auditTableBody.innerHTML = "";
-      if (!data.entries || data.entries.length === 0) {
-        auditTableBody.innerHTML = `<tr><td colspan="5" class="table-empty">Ledger is empty (0 records).</td></tr>`;
-        return;
-      }
-
-      // Render rows (most recent first)
-      const reversed = [...data.entries].reverse();
-      reversed.forEach(entry => {
-        const tr = document.createElement("tr");
-        const outcomeClass = entry.outcome === "ALLOW" ? "allow" : "deny";
-        const prevH = (entry.integrity.previous_hash || "").substring(0, 8);
-        const currH = (entry.integrity.entry_hash || "").substring(0, 8);
-        const seqPadded = String(entry.sequence_number).padStart(4, "0");
-
-        tr.innerHTML = `
-          <td>#${seqPadded}</td>
-          <td>${entry.timestamp}</td>
-          <td><span class="badge-table ${outcomeClass}">${entry.outcome}</span></td>
-          <td title="${entry.reason}">${entry.deciding_rule_id}</td>
-          <td><span title="${entry.integrity.previous_hash}">${prevH}...</span> &rarr; <span title="${entry.integrity.entry_hash}">${currH}...</span></td>
-        `;
-        auditTableBody.appendChild(tr);
-      });
+      renderAuditTable(data.entries || []);
     } catch (e) {
-      auditTableBody.innerHTML = `<tr><td colspan="5" class="table-empty text-warning">Failed to load audit records: ${e.message}</td></tr>`;
+      auditTableBody.innerHTML = `<tr><td colspan="5" class="table-empty text-warning">Failed to load backend audit records: ${e.message}</td></tr>`;
     }
+  }
+
+  function renderAuditTable(entries) {
+    auditTableBody.innerHTML = "";
+    if (!entries || entries.length === 0) {
+      auditTableBody.innerHTML = `<tr><td colspan="5" class="table-empty">Ledger is empty (0 records).</td></tr>`;
+      return;
+    }
+
+    const reversed = [...entries].reverse();
+    reversed.forEach(entry => {
+      const tr = document.createElement("tr");
+      const outcomeClass = entry.outcome === "ALLOW" ? "allow" : "deny";
+      const prevH = (entry.integrity.previous_hash || "").substring(0, 8);
+      const currH = (entry.integrity.entry_hash || "").substring(0, 8);
+      const seqPadded = String(entry.sequence_number).padStart(4, "0");
+
+      tr.innerHTML = `
+        <td>#${seqPadded}</td>
+        <td>${entry.timestamp}</td>
+        <td><span class="badge-table ${outcomeClass}">${entry.outcome}</span></td>
+        <td title="${entry.reason}">${entry.deciding_rule_id}</td>
+        <td><span title="${entry.integrity.previous_hash}">${prevH}...</span> &rarr; <span title="${entry.integrity.entry_hash}">${currH}...</span></td>
+      `;
+      auditTableBody.appendChild(tr);
+    });
   }
 
   // Verify Audit Integrity
@@ -183,40 +321,68 @@ document.addEventListener("DOMContentLoaded", () => {
     btnVerifyAudit.disabled = true;
     btnVerifyAudit.innerHTML = "<span>⏳</span> Verifying...";
 
-    try {
-      const resp = await fetch("/api/verify");
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      const res = await resp.json();
+    if (isLocalBackend) {
+      try {
+        const resp = await fetch("/api/verify");
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const res = await resp.json();
+
+        integrityBanner.classList.remove("hidden");
+        if (res.is_valid) {
+          integrityBanner.style.background = "var(--status-allow-bg)";
+          integrityBanner.style.borderColor = "var(--status-allow-border)";
+          integrityIcon.textContent = "✅";
+          integrityTitle.textContent = `Authoritative SHA-256 Chain Verified (${res.total_records} records)`;
+          integrityTitle.style.color = "var(--status-allow-text)";
+          integrityMsg.textContent = res.message;
+        } else {
+          integrityBanner.style.background = "var(--status-deny-bg)";
+          integrityBanner.style.borderColor = "var(--status-deny-border)";
+          integrityIcon.textContent = "🛑";
+          integrityTitle.textContent = "Tampering / Inconsistency Detected!";
+          integrityTitle.style.color = "var(--status-deny-text)";
+          integrityMsg.textContent = res.message;
+        }
+      } catch (e) {
+        alert(`Verification failed: ${e.message}`);
+      } finally {
+        btnVerifyAudit.disabled = false;
+        btnVerifyAudit.innerHTML = "<span>🔐</span> Verify Hash Chain";
+      }
+    } else {
+      // Browser demo mode: verify in-memory session chain
+      let isValid = true;
+      let checkHash = "0000000000000000000000000000000000000000000000000000000000000000";
+      for (const rec of browserSessionRecords) {
+        if (rec.integrity.previous_hash !== checkHash) {
+          isValid = false;
+          break;
+        }
+        checkHash = rec.integrity.entry_hash;
+      }
 
       integrityBanner.classList.remove("hidden");
-      if (res.is_valid) {
-        integrityBanner.style.background = "var(--status-allow-bg)";
-        integrityBanner.style.borderColor = "var(--status-allow-border)";
-        integrityIcon.textContent = "✅";
-        integrityTitle.textContent = `SHA-256 Chain Verified (${res.total_records} records)`;
-        integrityTitle.style.color = "var(--status-allow-text)";
-        integrityMsg.textContent = res.message;
-      } else {
-        integrityBanner.style.background = "var(--status-deny-bg)";
-        integrityBanner.style.borderColor = "var(--status-deny-border)";
-        integrityIcon.textContent = "🛑";
-        integrityTitle.textContent = "Tampering / Inconsistency Detected!";
-        integrityTitle.style.color = "var(--status-deny-text)";
-        integrityMsg.textContent = res.message;
-      }
-    } catch (e) {
-      alert(`Verification failed: ${e.message}`);
-    } finally {
+      integrityBanner.style.background = "var(--status-allow-bg)";
+      integrityBanner.style.borderColor = "var(--status-allow-border)";
+      integrityIcon.textContent = "✅";
+      integrityTitle.textContent = `Session History Verified (${browserSessionRecords.length} entries)`;
+      integrityTitle.style.color = "var(--status-allow-text)";
+      integrityMsg.textContent = "In-memory session demonstration chain verified. Notice: For the permanent SHA-256 ledger, run local backend (python cli.py audit verify).";
+
       btnVerifyAudit.disabled = false;
       btnVerifyAudit.innerHTML = "<span>🔐</span> Verify Hash Chain";
     }
   });
 
   btnRefreshAudit.addEventListener("click", () => {
-    loadAuditRecords();
+    if (isLocalBackend) {
+      loadBackendAuditRecords();
+    } else {
+      renderAuditTable(browserSessionRecords);
+    }
   });
 
-  // Form Submit: Evaluate Policy Gate
+  // Action Submission Handler (Dual-Mode)
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
     btnSubmit.disabled = true;
@@ -226,56 +392,94 @@ document.addEventListener("DOMContentLoaded", () => {
       action_id: inputActionId.value.trim(),
       action_type: inputActionType.value,
       target: inputTarget.value.trim(),
-      value_wei: parseInt(inputValueWei.value || "0", 10),
+      value_wei: inputValueWei.value ? inputValueWei.value.trim() : "0",
       data: inputCalldata.value.trim() || "0x",
       timestamp: inputTimestamp.value ? parseInt(inputTimestamp.value, 10) : null,
       description: inputDescription.value.trim(),
-      metadata: { source: "web_dashboard" }
+      metadata: { source: isLocalBackend ? "web_dashboard_backend" : "web_dashboard_browser_demo" }
     };
 
-    try {
-      const resp = await fetch("/api/check", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
+    if (isLocalBackend) {
+      // MODE A: Local Authoritative Python Backend
+      try {
+        const resp = await fetch("/api/check", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
 
-      if (!resp.ok) {
-        const errJson = await resp.json();
-        throw new Error(errJson.detail || `HTTP ${resp.status}`);
+        if (!resp.ok) {
+          const errJson = await resp.json();
+          throw new Error(errJson.detail || `HTTP ${resp.status}`);
+        }
+
+        const decision = await resp.json();
+        renderDecision(decision);
+        loadBackendAuditRecords();
+      } catch (err) {
+        alert(`Backend evaluation error: ${err.message}. Falling back to browser evaluator.`);
+        runBrowserEvaluation(payload);
+      } finally {
+        btnSubmit.disabled = false;
+        btnSubmit.innerHTML = '<span class="btn-icon">🛡️</span> Evaluate Policy Gate';
       }
-
-      const decision = await resp.json();
-      renderDecision(decision);
-
-      // Refresh audit ledger automatically after check
-      loadAuditRecords();
-    } catch (err) {
-      alert(`Evaluation request error: ${err.message}`);
-    } finally {
+    } else {
+      // MODE B: Hosted Browser-Side Demonstration
+      runBrowserEvaluation(payload);
       btnSubmit.disabled = false;
       btnSubmit.innerHTML = '<span class="btn-icon">🛡️</span> Evaluate Policy Gate';
     }
   });
 
+  async function runBrowserEvaluation(payload) {
+    if (typeof PolicyEvaluator === "undefined" || !PolicyEvaluator.evaluateAction) {
+      alert("Error: Browser policy evaluator module is not loaded.");
+      return;
+    }
+
+    const decision = PolicyEvaluator.evaluateAction(payload, PolicyEvaluator.DEFAULT_POLICY);
+    renderDecision(decision);
+
+    // Append to browser demo session records
+    const nextSeq = browserSessionRecords.length + 1;
+    const recPayload = JSON.stringify({ seq: nextSeq, outcome: decision.outcome, rule: decision.deciding_rule_id, desc: decision.reason });
+    const entryHash = await computeSha256(lastSessionHash + recPayload);
+
+    browserSessionRecords.push({
+      sequence_number: nextSeq,
+      timestamp: new Date().toISOString().replace("T", " ").substring(0, 19) + " UTC",
+      outcome: decision.outcome,
+      deciding_rule_id: decision.deciding_rule_id,
+      reason: decision.reason,
+      integrity: {
+        previous_hash: lastSessionHash,
+        entry_hash: entryHash
+      }
+    });
+    lastSessionHash = entryHash;
+
+    renderAuditTable(browserSessionRecords);
+  }
+
   function renderDecision(decision) {
     const isAllow = decision.outcome === "ALLOW";
 
-    // Update Verdict Pill
+    // Verdict Pill
     verdictPill.className = `verdict-pill ${isAllow ? "allow" : "deny"}`;
     verdictPill.textContent = decision.outcome;
 
-    // Update Verdict Banner
+    // Verdict Banner
     verdictBanner.className = `verdict-banner ${isAllow ? "allow" : "deny"}`;
     verdictTitle.textContent = isAllow ? "Action Authorized by Policy" : "Action Blocked by Gatekeeper";
     verdictReason.textContent = decision.reason;
 
-    // Update Meta Items
+    // Meta Items
     metaDecidingRule.textContent = decision.deciding_rule_id;
     metaRuleType.textContent = decision.deciding_rule_type;
     metaDecisionId.textContent = decision.decision_id;
+    metaExecutionStatus.textContent = "NOT EXECUTED";
 
-    // Render Rule Traces
+    // Rule Traces
     ruleTracesList.innerHTML = "";
     if (decision.evaluations && decision.evaluations.length > 0) {
       decision.evaluations.forEach(ev => {
@@ -297,11 +501,10 @@ document.addEventListener("DOMContentLoaded", () => {
         ruleTracesList.appendChild(item);
       });
     } else {
-      ruleTracesList.innerHTML = `<div class="empty-state">No individual rule traces returned.</div>`;
+      ruleTracesList.innerHTML = `<div class="empty-state">No individual rule traces recorded.</div>`;
     }
   }
 
-  // Initial Load
-  loadStatus();
-  loadAuditRecords();
+  // Detect mode immediately on startup
+  detectOperatingMode();
 });

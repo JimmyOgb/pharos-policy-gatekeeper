@@ -1,14 +1,53 @@
 # Pharos Policy Gatekeeper
 
 [![Pharos Atlantic Testnet](https://img.shields.io/badge/Pharos%20Atlantic-Chain%20ID%20688689-blue)](https://atlantic.dplabs-internal.com)
-[![Status](https://img.shields.io/badge/Task%2011-Gate%203%20Product%20Integrated-green)](#)
-[![Tests Passing](https://img.shields.io/badge/Tests-46%20Passed-brightgreen)](#automated-testing)
+[![GitHub Repository](https://img.shields.io/badge/GitHub-JimmyOgb%2Fpharos--policy--gatekeeper-181717?logo=github)](https://github.com/JimmyOgb/pharos-policy-gatekeeper)
+[![Deployment](https://img.shields.io/badge/Vercel-Production%20Live-brightgreen?logo=vercel)](#how-to-test)
+[![Tests](https://img.shields.io/badge/Tests-46%20Python%20%2B%2016%20JS%20Passed-brightgreen)](#automated-testing)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![RPC Compatibility](https://img.shields.io/badge/RPC%20Compat-Standard%20JSON--RPC%20Only-brightgreen)](#pharos-rpc-compatibility)
 
 A deterministic, fail-closed policy enforcement engine and tamper-evident audit ledger for autonomous agents on the Pharos blockchain (`Chain ID: 688689`). Sits directly between agent decision logic and execution adapters, evaluating proposed transactions against configurable spend limits, contract allowlists, and authorized UTC operating windows.
 
 Built for **Pharos Agent Arena Task 11 — Policy Gatekeeper** (`policy-gatekeeper`).
+
+---
+
+## ⚡ Judge Quickstart: How to Test (30 Seconds)
+
+### Option 1: Live Hosted Dashboard (Vercel)
+Open the deployed dashboard in your browser:
+**Live Production URL:** [https://pharos-policy-gatekeeper.vercel.app](https://pharos-policy-gatekeeper.vercel.app)
+
+1. **Test Allow (Consensus):** Click the preset **✅ Allow (All Rules Pass)** $\to$ Click **Evaluate Policy Gate**.  
+   *Result:* Verdict returns **`ALLOW`**, all 3 rule traces pass, execution status shows `NOT EXECUTED`.
+2. **Test Deny (Spend Limit):** Click the preset **🛑 Deny: Spend Limit** (5.0 PHRS) $\to$ Click **Evaluate Policy Gate**.  
+   *Result:* Verdict returns **`DENY`** with deciding rule `rule-spend-limit-01` (exceeds 1.0 PHRS cap).
+3. **Test Deny (Allowlist):** Click the preset **🛑 Deny: Unlisted Target** (untrusted `0x9999...`) $\to$ Click **Evaluate Policy Gate**.  
+   *Result:* Verdict returns **`DENY`** with deciding rule `rule-allowlist-02`.
+4. **Test Deny (Time Window):** Click the preset **🛑 Deny: Outside Window** (03:00 UTC) $\to$ Click **Evaluate Policy Gate**.  
+   *Result:* Verdict returns **`DENY`** with deciding rule `rule-time-window-03`.
+5. **Verify Audit Chain:** Click **🔐 Verify Hash Chain** to cryptographically verify session integrity.
+
+### Option 2: Local CLI Verification
+```bash
+# Clone the repository
+git clone https://github.com/JimmyOgb/pharos-policy-gatekeeper.git
+cd pharos-policy-gatekeeper
+
+# Evaluate action proofs via CLI
+python cli.py check examples/requests_allow.json --policy examples/policy.yaml
+python cli.py check examples/request_deny_spend.json --policy examples/policy.yaml
+python cli.py check examples/request_deny_allowlist.json --policy examples/policy.yaml
+python cli.py check examples/request_deny_timewindow.json --policy examples/policy.yaml
+
+# Verify SHA-256 hash-chain integrity of local audit ledger
+python cli.py audit verify --log audit.jsonl
+
+# Run full test suite (46 Python tests + 16 JavaScript browser evaluator tests)
+python -m pytest tests/
+node tests/test_browser_evaluator.js
+```
 
 ---
 
@@ -35,6 +74,23 @@ flowchart TD
 
 ---
 
+## Dual-Mode Architecture & Safety Disclosures
+
+The web dashboard is engineered with a **dual-mode architecture** to support both local production deployments and hosted demonstrations:
+
+| Operating Mode | Trigger / Condition | Policy Engine | Audit Ledger Persistence | Safety Disclosures |
+| :--- | :--- | :--- | :--- | :--- |
+| **Mode A: Local Authoritative Mode** | Local FastAPI server reachable (`/api/status`) | Authoritative Python Engine (`policy/evaluator.py`) | Tamper-evident persistent file (`audit.jsonl`) with cryptographic SHA-256 chain | `execution_status: NOT EXECUTED` |
+| **Mode B: Hosted Browser-Demo Mode** | Hosted Vercel static environment | Pure deterministic JavaScript engine (`web/evaluator.js`) | Client session memory with simulated SHA-256 chain | `DEMO MODE — BROWSER-SIDE EVALUATION`<br>`execution_status: NOT EXECUTED` |
+
+> [!IMPORTANT]
+> **CRITICAL SAFETY NOTICE:**
+> Policy decisions are demonstrations only. They do not authorize, execute, block, or secure real wallet transactions.
+> Real blockchain transactions are never signed or broadcast from this dashboard, and no real wallets are connected. Every evaluation strictly returns `execution_status: NOT EXECUTED`.
+> A `DENY` decision strictly guarantees that zero execution dispatches occur.
+
+---
+
 ## Official Acceptance Criteria Alignment
 
 | # | Official Task Requirement | Implementation Approach | Status |
@@ -49,60 +105,24 @@ flowchart TD
 ## Core Rule Types
 
 ### 1. Spend Limit (`spend_limit`)
-- Enforces maximum single-transaction native token amount in wei (`max_native_wei`).
-- Enforces maximum cumulative rolling spend over a 24-hour window.
+- Enforces maximum single-transaction native token amount in wei (`max_native_wei` = 1.0 PHRS).
+- Enforces maximum cumulative rolling spend over a 24-hour window (`max_cumulative_native_wei` = 5.0 PHRS).
 - Decodes and validates standard ERC20 `transfer(address,uint256)` and `approve(address,uint256)` amounts for registered tokens (e.g. test USDC `0xcfC8330f4BCAB529c625D12781b1C19466A9Fc8B`).
-- Uses pure integer arithmetic to prevent floating-point comparison errors.
+- Uses pure integer/BigInt arithmetic to prevent floating-point comparison errors.
 
 ### 2. Contract & Address Allowlist (`allowlist`)
-- Restricts permissible interaction targets to verified Pharos Atlantic contracts (e.g. MultiCall3 `0xcA11bde05977b3631167028862bE2a173976CA11`, Atlantic USDC, WPHRS).
-- Enforces case-insensitive address normalization (EIP-55 checksum support).
-- Optionally restricts permitted 4-byte EVM function selectors.
+- Restricts permissible interaction targets to verified Pharos Atlantic contracts (MultiCall3 `0xcA11bde05977b3631167028862bE2a173976CA11`, Atlantic USDC, Atlantic WPHRS, Operations Safe).
+- Enforces case-insensitive address normalization and EIP-55 checksum validation.
+- Optionally restricts permitted 4-byte EVM function selectors (`tryAggregate`, `deposit`, `transfer`, `approve`, `withdraw`).
 
 ### 3. Execution Time Window (`time_window`)
-- Restricts autonomous transactions to authorized operating hours (e.g. `08:00:00` to `20:00:00` UTC).
-- Enforces authorized days of the week (e.g., Monday through Friday).
-- Supports clock dependency injection for deterministic testing and reproducible audits.
+- Restricts autonomous transactions to authorized operating hours (`08:00:00` to `20:00:00` UTC).
+- Enforces authorized days of the week (`MONDAY` through `FRIDAY`).
+- Evaluates purely in UTC with clock dependency injection for deterministic testing and reproducible audits.
 
 ---
 
-## Quickstart & CLI Usage
-
-### Installation
-Ensure Python 3.10+ is installed. Install required dependencies:
-```bash
-pip install pyyaml fastapi uvicorn pydantic pytest
-```
-
-### 1. Evaluate Action via CLI
-```bash
-# Evaluate an action request against default policy
-python cli.py check examples/requests_allow.json --policy examples/policy.yaml
-
-# Evaluate specific rule violation proofs
-python cli.py check examples/request_deny_spend.json --policy examples/policy.yaml
-python cli.py check examples/request_deny_allowlist.json --policy examples/policy.yaml
-python cli.py check examples/request_deny_timewindow.json --policy examples/policy.yaml
-```
-
-### 2. Inspect & Verify Audit Ledger
-```bash
-# Verify cryptographic SHA-256 hash-chain integrity
-python cli.py audit verify --log audit.jsonl
-
-# List historical audit decisions with hash transitions
-python cli.py audit list --log audit.jsonl
-```
-
-### 3. Launch Web Dashboard & REST Server
-```bash
-python cli.py serve --host 127.0.0.1 --port 8899
-```
-Open [http://127.0.0.1:8899](http://127.0.0.1:8899) in your browser to interact with the responsive visualizer.
-
----
-
-## REST API Documentation
+## REST API Reference (Local Mode)
 
 | Method | Endpoint | Description |
 |---|---|---|
@@ -110,17 +130,6 @@ Open [http://127.0.0.1:8899](http://127.0.0.1:8899) in your browser to interact 
 | `POST` | `/api/check` | Accepts `ActionRequest` payload, evaluates it deterministically, logs to audit ledger, and returns `Decision` object. |
 | `GET` | `/api/audit` | Retrieves structured entries from the append-only audit ledger (supports `limit`, `offset`, `tail`). |
 | `GET` | `/api/verify` | Runs cryptographic SHA-256 hash-chain verification across all audit records and returns validation status. |
-
----
-
-## Fail-Closed Security Model & Honest Execution Notice
-
-1. **Deny by Default:** Missing policies, invalid JSON/YAML schemas, unknown action types, or evaluation exceptions strictly result in `DENY`.
-2. **Physical Boundary Isolation:** The `Gatekeeper.execute_safely()` wrapper raises `PolicyViolationError` on any non-`ALLOW` outcome. Denied requests **never** reach the execution adapter.
-3. **No Overrides:** AI agent recommendations or caller flags cannot override a `DENY` decision.
-4. **Honest Execution Notice:**
-   > [!NOTE]
-   > The Web Dashboard and `/api/check` endpoint perform **policy evaluation and gating only**. Real blockchain transactions are never signed or broadcast from this dashboard, and no real wallets are connected. All responses explicitly report `execution_status: NOT EXECUTED`.
 
 ---
 
@@ -136,14 +145,27 @@ Pharos announced that debug and trace methods (`debug_traceTransaction`, `debug_
 
 ## Automated Testing
 
-Run the full automated test suite (37 unit/security tests + 9 FastAPI integration tests):
+### 1. Python Test Suite (Unit, Security, API)
 ```bash
 python -m pytest tests/ -v
 ```
-All **46 tests pass** with zero failures.
+**46 passed** (100% pass rate).
+
+### 2. JavaScript Test Suite (Browser Evaluator Engine)
+```bash
+node tests/test_browser_evaluator.js
+```
+**16 passed** (100% pass rate).
+
+---
+
+## Demo Video & Media
+
+- **Master 1080p Walkthrough:** [`pharos_policy_gatekeeper_demo.mp4`](pharos_policy_gatekeeper_demo.mp4) (9.44 MB, 1920x1080, 30fps H.264)
+- **Narration Audio:** [`voiceover.mp3`](voiceover.mp3) (1.19 MB)
 
 ---
 
 ## License
 
-MIT
+MIT License. Copyright 2026 JimmyOgb.

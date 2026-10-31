@@ -21,16 +21,33 @@
         </div>
       </div>
       <div class="header-badges">
+        <div id="badge-mode" class="status-badge badge-warning">
+          <span class="badge-dot"></span>
+          <span id="mode-text">DEMO MODE — BROWSER-SIDE EVALUATION</span>
+        </div>
         <div id="badge-network" class="status-badge badge-neutral">
           <span class="badge-dot"></span>
           <span id="network-text">Atlantic RPC: Checking...</span>
         </div>
-        <div class="status-badge badge-warning">
+        <div class="status-badge badge-danger-soft">
           <span class="badge-dot"></span>
-          <span>EVALUATION ONLY (Zero Broadcast)</span>
+          <span>NOT EXECUTED (Zero Broadcast)</span>
         </div>
       </div>
     </header>
+
+    <!-- Global Safety & Operating Mode Disclosure Banner -->
+    <div id="safety-disclosure-banner" class="safety-banner">
+      <div class="safety-banner-icon">⚠️</div>
+      <div class="safety-banner-content">
+        <strong id="safety-mode-title">DEMO MODE — BROWSER-SIDE POLICY EVALUATION</strong>
+        <p id="safety-mode-text">
+          Policy decisions are demonstrations only. They do not authorize, execute, block, or secure real wallet transactions.
+          Every evaluation strictly returns <code class="status-code">execution_status: NOT EXECUTED</code>.
+        </p>
+      </div>
+      <div class="safety-banner-tag" id="safety-banner-tag">HOSTED PREVIEW</div>
+    </div>
 
     <!-- Main Container Grid -->
     <main class="dashboard-grid">
@@ -200,12 +217,16 @@
               <span class="meta-value mono" id="meta-rule-type">—</span>
             </div>
             <div class="meta-item">
-              <span class="meta-label">Decision ID</span>
-              <span class="meta-value mono text-truncate" id="meta-decision-id">—</span>
+              <span class="meta-label">Operating Mode</span>
+              <span class="meta-value mono text-primary" id="meta-operating-mode">Browser Demo</span>
             </div>
             <div class="meta-item">
               <span class="meta-label">Execution Status</span>
               <span class="meta-value mono text-warning" id="meta-execution-status">NOT EXECUTED</span>
+            </div>
+            <div class="meta-item col-span-2">
+              <span class="meta-label">Decision ID</span>
+              <span class="meta-value mono text-truncate" id="meta-decision-id">—</span>
             </div>
           </div>
 
@@ -223,7 +244,7 @@
           <div class="card-header">
             <div class="card-title-group">
               <span class="card-icon">⛓️</span>
-              <h2>Append-Only Audit Ledger</h2>
+              <h2 id="audit-title-text">Evaluation Audit History</h2>
             </div>
             <div class="audit-actions">
               <button type="button" id="btn-verify-audit" class="btn-secondary">
@@ -231,6 +252,10 @@
               </button>
               <button type="button" id="btn-refresh-audit" class="btn-icon-action" title="Refresh records">🔄</button>
             </div>
+          </div>
+
+          <div class="audit-mode-notice-bar">
+            <span id="audit-mode-notice">Browser Session History (Demonstration Log — Not Cryptographically Anchored)</span>
           </div>
 
           <!-- Integrity Verification Banner -->
@@ -262,13 +287,14 @@
             </table>
           </div>
           <div class="audit-footer-note">
-            <span>ℹ️ Tamper-evident SHA-256 hash chaining: <code>entry_hash = SHA-256(previous_hash || payload)</code></span>
+            <span id="audit-footer-text">ℹ️ Local mode anchors to tamper-evident SHA-256 hash chain: <code>entry_hash = SHA-256(prev || payload)</code></span>
           </div>
         </div>
       </section>
     </main>
   </div>
 
+  <script src="evaluator.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
